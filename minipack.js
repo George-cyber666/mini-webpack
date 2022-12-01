@@ -67,3 +67,42 @@ function createGraph (entry) {
   return queue
 }
 
+// 自定义实现了require方法，找到导出变量的引用逻辑
+function bundle (graph) {
+  let modules = ''
+  graph.forEach(mod => {
+      modules += `${mod.id}: [
+        function (require, module, exports) { ${ mod.code } },
+        ${JSON.stringify(mod.mapping)},
+      ],`
+  })
+  const result = `
+    (function(modules) {
+      function require(id) {
+        const [fn, mapping] = modules[id]
+        function localRequire(name) {
+          return require(mapping[name])
+        }
+        const module = { exports: {}}
+        fn(localRequire, module, module.exports)
+        return module.exports
+      }
+      require(0)
+    })({${modules}})
+  `
+  return result
+}
+
+// 项目的入口文件
+const graph = createGraph('./example/entry.js')
+console.log('%c 🍊 graph: ', 'font-size:20px;background-color: #7F2B82;color:#fff;', graph);
+const result = bundle(graph)
+
+// 创建dist目录，将打包的内容写入main.js
+fs.mkdir('dist', err => {
+  if (!err) {
+    fs.writeFile('dist/main.js', result, err1 => {
+      if (!err1) console.log('打包成功')
+    })
+  }
+})
